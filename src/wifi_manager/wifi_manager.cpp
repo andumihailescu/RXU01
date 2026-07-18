@@ -1,5 +1,7 @@
 #include "wifi_manager/wifi_manager.h"
 
+#include <algorithm>
+
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
@@ -14,6 +16,19 @@ namespace
     {
         // Canalele Wi-Fi uzuale permise in regiunea europeana.
         return channel >= 1 && channel <= 13;
+    }
+
+    bool isValidUnicastMac(
+        const uint8_t mac[wifi_manager::MAC_ADDRESS_SIZE])
+    {
+        const bool is_zero = std::all_of(
+            mac,
+            mac + wifi_manager::MAC_ADDRESS_SIZE,
+            [](uint8_t byte) { return byte == 0; });
+
+        const bool is_multicast = (mac[0] & 0x01U) != 0;
+
+        return !is_zero && !is_multicast;
     }
 
     esp_err_t initNvs()
@@ -56,7 +71,9 @@ namespace wifi_manager
             return ESP_OK;
         }
 
-        if (!isValidChannel(config.channel))
+        if (!isValidChannel(config.channel) ||
+            (config.use_custom_station_mac &&
+             !isValidUnicastMac(config.station_mac)))
         {
             return ESP_ERR_INVALID_ARG;
         }
@@ -110,6 +127,19 @@ namespace wifi_manager
         {
             cleanupAfterFailedInit(wifi_started);
             return result;
+        }
+
+        if (config.use_custom_station_mac)
+        {
+            result = esp_wifi_set_mac(
+                WIFI_IF_STA,
+                config.station_mac);
+
+            if (result != ESP_OK)
+            {
+                cleanupAfterFailedInit(wifi_started);
+                return result;
+            }
         }
 
         result = esp_wifi_start();

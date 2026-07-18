@@ -10,6 +10,10 @@ namespace application
         uint8_t receive_queue_depth = 8;
         uint8_t send_result_queue_depth = 8;
 
+        bool use_custom_station_mac = true;
+        uint8_t station_mac[6] = {
+            0x02, 0x52, 0x58, 0x55, 0x00, 0x01};
+
         uint32_t transport_start_identifier = 0x6E0;
         uint32_t transport_data_identifier = 0x6E1;
         bool transport_identifiers_are_extended = false;

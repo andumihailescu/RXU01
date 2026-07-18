@@ -123,5 +123,11 @@ namespace esp_now_driver
     esp_err_t get_local_mac(
         uint8_t mac[MAC_ADDRESS_SIZE]);
 
+    /**
+     * Afiseaza in serial monitor adresa MAC folosita de ESP-NOW.
+     * Adresa poate fi copiata direct in configuratia peer-ului TXU01.
+     */
+    esp_err_t log_local_mac(const char *tag = "ESP_NOW");
+
     esp_err_t get_esp_now_version(uint32_t &version);
 }

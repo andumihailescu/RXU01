@@ -124,6 +124,13 @@ namespace
         config.channel = app_config.esp_now_channel;
         config.storage = WIFI_STORAGE_RAM;
         config.power_save = WIFI_PS_NONE;
+        config.use_custom_station_mac =
+            app_config.use_custom_station_mac;
+
+        std::memcpy(
+            config.station_mac,
+            app_config.station_mac,
+            wifi_manager::MAC_ADDRESS_SIZE);
 
         return wifi_manager::init(config);
     }
@@ -140,18 +147,13 @@ namespace
         return esp_now_driver::init(config);
     }
 
-    void log_local_mac(const application::Config &config)
+    void log_startup_info(const application::Config &config)
     {
-        uint8_t local_mac[esp_now_driver::MAC_ADDRESS_SIZE]{};
-
-        ESP_ERROR_CHECK(esp_now_driver::get_local_mac(local_mac));
-
         ESP_LOGI(TAG, "RXU01 pornit");
         ESP_LOGI(
             TAG,
             "Canal ESP-NOW: %u",
             static_cast<unsigned>(config.esp_now_channel));
-        ESP_LOGI(TAG, "MAC local STA: " MACSTR, MAC2STR(local_mac));
         ESP_LOGI(TAG, "Astept mesaje ESP-NOW...");
     }
 
@@ -239,7 +241,7 @@ namespace application
         ESP_ERROR_CHECK(initialize_wifi(config));
         ESP_ERROR_CHECK(initialize_esp_now(config));
 
-        log_local_mac(config);
+        log_startup_info(config);
         run_main_loop();
     }
 }

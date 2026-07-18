@@ -3,6 +3,8 @@
 #include <atomic>
 #include <cstring>
 
+#include "esp_log.h"
+#include "esp_mac.h"
 #include "esp_wifi.h"
 
 #include "freertos/FreeRTOS.h"
@@ -499,6 +501,29 @@ namespace esp_now_driver
         return esp_wifi_get_mac(
             g_config.interface,
             mac);
+    }
+
+    esp_err_t log_local_mac(const char *tag)
+    {
+        if (tag == nullptr)
+        {
+            return ESP_ERR_INVALID_ARG;
+        }
+
+        uint8_t mac[MAC_ADDRESS_SIZE]{};
+        const esp_err_t result = get_local_mac(mac);
+
+        if (result != ESP_OK)
+        {
+            return result;
+        }
+
+        ESP_LOGI(
+            tag,
+            "RXU01 ESP-NOW MAC pentru TXU01: " MACSTR,
+            MAC2STR(mac));
+
+        return ESP_OK;
     }
 
     esp_err_t get_esp_now_version(
