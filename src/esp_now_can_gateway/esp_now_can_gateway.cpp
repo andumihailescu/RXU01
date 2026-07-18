@@ -159,7 +159,7 @@ namespace
          *
          * byte 0   = 0x10
          * byte 1   = transfer ID
-         * byte 2   = destinatia logica
+         * byte 2   = tipul mesajului
          * byte 3-4 = message ID
          * byte 5   = lungime totala
          * byte 6-7 = CRC16 al payloadului
@@ -187,7 +187,7 @@ namespace
 
         start_frame.data[2] =
             static_cast<uint8_t>(
-                message.destination);
+                message.type);
 
         writeUint16LittleEndian(
             &start_frame.data[3],
@@ -343,9 +343,8 @@ namespace esp_now_can_gateway
         if (!remote_protocol::
                 is_valid_message_type(
                     message.type) ||
-            !remote_protocol::
-                is_valid_destination(
-                    message.destination) ||
+            !remote_protocol::are_valid_flags(
+                message.flags) ||
             message.payload_length >
                 remote_protocol::
                     MAX_PAYLOAD_SIZE)

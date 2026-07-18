@@ -1,16 +1,16 @@
 idf_component_register(
-    SRC_DIRS
-        "."
-        "wifi_manager"
-        "esp_now_driver"
-        "remote_protocol"
-        "esp_now_can_gateway"
-        "rxu01_router"
-        "mcp2515"
-        "can_manager"
+    SRCS
+        "main.cpp"
+        "application/application.cpp"
+        "wifi_manager/wifi_manager.cpp"
+        "esp_now_driver/esp_now_driver.cpp"
+        "remote_protocol/remote_protocol.cpp"
+        "esp_now_can_gateway/esp_now_can_gateway.cpp"
+        "mcp2515/mcp2515.cpp"
+        "can_manager/can_manager.cpp"
 
     INCLUDE_DIRS
-        "."
+        "../include"
 
     REQUIRES
         esp_event

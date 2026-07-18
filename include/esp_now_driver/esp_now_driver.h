@@ -12,7 +12,10 @@ namespace esp_now_driver
     constexpr std::size_t MAC_ADDRESS_SIZE =
         ESP_NOW_ETH_ALEN;
 
-    // Limita compatibila cu ESP-NOW v1.
+    /**
+     * Limita de 250 bytes pastreaza compatibilitatea cu ESP-NOW v1.0.
+     * Protocolul aplicatiei foloseste maximum 76 bytes in configuratia curenta.
+     */
     constexpr std::size_t MAX_PAYLOAD_SIZE =
         ESP_NOW_MAX_DATA_LEN;
 
@@ -28,7 +31,8 @@ namespace esp_now_driver
         wifi_interface_t interface =
             WIFI_IF_STA;
 
-        uint8_t default_peer_channel = 1;
+        // 0 foloseste canalul curent al interfetei Wi-Fi.
+        uint8_t default_peer_channel = 0;
 
         uint8_t receive_queue_depth = 8;
         uint8_t send_result_queue_depth = 8;
@@ -38,7 +42,10 @@ namespace esp_now_driver
     {
         uint8_t mac[MAC_ADDRESS_SIZE]{};
 
-        // 0 = canalul interfetei locale.
+        /**
+         * 0 inseamna canalul Wi-Fi curent.
+         * Altfel trebuie sa fie acelasi canal cu interfata locala.
+         */
         uint8_t channel = 0;
 
         wifi_interface_t interface =
@@ -75,7 +82,7 @@ namespace esp_now_driver
     };
 
     /**
-     * Wi-Fi trebuie initializat si pornit inainte.
+     * Wi-Fi trebuie sa fie deja initializat si pornit.
      */
     esp_err_t init(const Config &config);
 
