@@ -10,31 +10,41 @@ namespace
         return true;
     }
 
-    bool validate_turn_signal(
+    bool validate_indicator_state(
         const uint8_t *payload,
         uint8_t payload_length)
     {
         using vehicle_can_protocol::BinaryState;
-        using vehicle_can_protocol::TurnSignal;
+        using vehicle_can_protocol::IndicatorStateField;
 
-        if (payload_length != 2)
+        if (payload == nullptr ||
+            payload_length !=
+                vehicle_can_protocol::INDICATOR_STATE_PAYLOAD_LENGTH)
         {
             return false;
         }
 
-        const uint8_t selector = payload[0];
-        const uint8_t state = payload[1];
+        const auto field = [payload](IndicatorStateField index) {
+            return payload[static_cast<std::size_t>(index)];
+        };
+        const auto is_binary = [](uint8_t state) {
+            return state == static_cast<uint8_t>(BinaryState::Off) ||
+                   state == static_cast<uint8_t>(BinaryState::On);
+        };
 
-        const bool valid_selector =
-            selector == static_cast<uint8_t>(TurnSignal::Left) ||
-            selector == static_cast<uint8_t>(TurnSignal::Right) ||
-            selector == static_cast<uint8_t>(TurnSignal::Warning);
+        const uint8_t warning = field(IndicatorStateField::Warning);
+        const uint8_t left = field(IndicatorStateField::Left);
+        const uint8_t right = field(IndicatorStateField::Right);
 
-        const bool valid_state =
-            state == static_cast<uint8_t>(BinaryState::Off) ||
-            state == static_cast<uint8_t>(BinaryState::On);
+        if (!is_binary(warning) ||
+            !is_binary(left) ||
+            !is_binary(right))
+        {
+            return false;
+        }
 
-        return valid_selector && valid_state;
+        return !(left == static_cast<uint8_t>(BinaryState::On) &&
+                 right == static_cast<uint8_t>(BinaryState::On));
     }
 
     constexpr can_command_router::EcuId ecu_id(
@@ -89,13 +99,13 @@ namespace
         {
             remote_id(
                 vehicle_can_protocol::RemoteCommandId::
-                    LightingActivateTurnSignal),
+                    LightingSetIndicatorState),
             ecu_id(vehicle_can_protocol::EcuRole::Lighting),
             lmcu_command_id(
                 vehicle_can_protocol::Lmcu100CommandId::
-                    ActivateTurnSignal),
-            2,
-            validate_turn_signal,
+                    SetIndicatorState),
+            vehicle_can_protocol::INDICATOR_STATE_PAYLOAD_LENGTH,
+            validate_indicator_state,
         },
     };
 }

@@ -35,7 +35,7 @@ namespace vehicle_can_protocol
             make_remote_message_id(EcuRole::Lighting, 0x01),
         LightingSetTaillightsBrightness =
             make_remote_message_id(EcuRole::Lighting, 0x02),
-        LightingActivateTurnSignal =
+        LightingSetIndicatorState =
             make_remote_message_id(EcuRole::Lighting, 0x03)
     };
 
@@ -50,14 +50,14 @@ namespace vehicle_can_protocol
     {
         GetSoftwareVersion = 0x01,
         SetTaillightsBrightness = 0x02,
-        ActivateTurnSignal = 0x03
+        SetIndicatorState = 0x03
     };
 
-    enum class TurnSignal : uint8_t
+    enum class IndicatorStateField : uint8_t
     {
-        Left = 0x01,
-        Right = 0x02,
-        Warning = 0x03
+        Warning = 0,
+        Left = 1,
+        Right = 2
     };
 
     enum class BinaryState : uint8_t
@@ -65,6 +65,12 @@ namespace vehicle_can_protocol
         Off = 0x00,
         On = 0x01
     };
+
+    constexpr uint8_t INDICATOR_STATE_PAYLOAD_LENGTH = 3;
+
+    static_assert(
+        static_cast<uint16_t>(
+            RemoteCommandId::LightingSetIndicatorState) == 0x0103);
 
     /**
      * Returneaza registry-ul ECU si tabela de comenzi ale masinii.
