@@ -68,13 +68,35 @@ esp_err_t CanManager::begin()
     return ESP_OK;
 }
 
-MCP2515::ERROR CanManager::send(const can_frame &frame)
+CanManager::TransmitResult CanManager::send(
+    const can_frame &frame)
 {
     if (!initialized_)
     {
-        return MCP2515::ERROR_FAIL;
+        return TransmitResult::NotInitialized;
+    }
+
+    if (frame.can_dlc > CAN_MAX_DLEN)
+    {
+        return TransmitResult::InvalidFrame;
     }
 
     can_frame mutable_frame = frame;
-    return driver_.sendMessage(&mutable_frame);
+    const MCP2515::ERROR result = driver_.sendMessage(
+        &mutable_frame,
+        config_.transmit_timeout_ms);
+
+    switch (result)
+    {
+    case MCP2515::ERROR_OK:
+        return TransmitResult::Ok;
+    case MCP2515::ERROR_ALLTXBUSY:
+        return TransmitResult::Busy;
+    case MCP2515::ERROR_TXTIMEOUT:
+        return TransmitResult::Timeout;
+    case MCP2515::ERROR_FAILTX:
+        return TransmitResult::Failed;
+    default:
+        return TransmitResult::Failed;
+    }
 }

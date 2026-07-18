@@ -62,15 +62,38 @@ namespace
                 (value >> 8U) & 0xFFU);
     }
 
-    esp_err_t transmitFrame(
+    esp_now_can_gateway::ProcessResult mapTransmitResult(
+        esp_now_can_gateway::TransmitResult result)
+    {
+        using TransmitResult =
+            esp_now_can_gateway::TransmitResult;
+        using ProcessResult =
+            esp_now_can_gateway::ProcessResult;
+
+        switch (result)
+        {
+        case TransmitResult::Ok:
+            return ProcessResult::Ok;
+        case TransmitResult::Busy:
+            return ProcessResult::CanBusy;
+        case TransmitResult::Timeout:
+            return ProcessResult::CanTimeout;
+        case TransmitResult::Failed:
+        default:
+            return ProcessResult::CanTransmitFailed;
+        }
+    }
+
+    esp_now_can_gateway::ProcessResult transmitFrame(
         const esp_now_can_gateway::CanFrame &frame)
     {
-        const esp_err_t result =
+        const esp_now_can_gateway::TransmitResult result =
             g_config.transmit(
                 frame,
                 g_config.transmit_context);
 
-        if (result == ESP_OK)
+        if (result ==
+            esp_now_can_gateway::TransmitResult::Ok)
         {
             ++g_statistics.frames_sent;
         }
@@ -79,10 +102,10 @@ namespace
             ++g_statistics.transmit_errors;
         }
 
-        return result;
+        return mapTransmitResult(result);
     }
 
-    esp_err_t sendDirectMessage(
+    esp_now_can_gateway::ProcessResult sendDirectMessage(
         const remote_protocol::Message &message)
     {
         const uint32_t identifier =
@@ -94,7 +117,8 @@ namespace
                 g_config
                     .direct_identifiers_are_extended))
         {
-            return ESP_ERR_INVALID_ARG;
+            return esp_now_can_gateway::
+                ProcessResult::InvalidMessage;
         }
 
         esp_now_can_gateway::CanFrame frame{};
@@ -116,10 +140,11 @@ namespace
                 message.payload_length);
         }
 
-        const esp_err_t result =
+        const esp_now_can_gateway::ProcessResult result =
             transmitFrame(frame);
 
-        if (result == ESP_OK)
+        if (result ==
+            esp_now_can_gateway::ProcessResult::Ok)
         {
             ++g_statistics.direct_messages;
         }
@@ -127,7 +152,7 @@ namespace
         return result;
     }
 
-    esp_err_t sendFragmentedMessage(
+    esp_now_can_gateway::ProcessResult sendFragmentedMessage(
         const remote_protocol::Message &message)
     {
         const std::size_t fragment_count =
@@ -143,7 +168,8 @@ namespace
                 (TRANSPORT_FRAGMENT_INDEX_MASK +
                  1U))
         {
-            return ESP_ERR_INVALID_SIZE;
+            return esp_now_can_gateway::
+                ProcessResult::InvalidMessage;
         }
 
         const uint8_t transfer_id =
@@ -200,10 +226,11 @@ namespace
             &start_frame.data[6],
             payload_crc);
 
-        esp_err_t result =
+        esp_now_can_gateway::ProcessResult result =
             transmitFrame(start_frame);
 
-        if (result != ESP_OK)
+        if (result !=
+            esp_now_can_gateway::ProcessResult::Ok)
         {
             return result;
         }
@@ -257,7 +284,8 @@ namespace
             result =
                 transmitFrame(data_frame);
 
-            if (result != ESP_OK)
+            if (result !=
+                esp_now_can_gateway::ProcessResult::Ok)
             {
                 return result;
             }
@@ -268,7 +296,7 @@ namespace
 
         ++g_statistics.fragmented_messages;
 
-        return ESP_OK;
+        return esp_now_can_gateway::ProcessResult::Ok;
     }
 }
 
@@ -332,12 +360,12 @@ namespace esp_now_can_gateway
         return g_initialized;
     }
 
-    esp_err_t process_message(
+    ProcessResult process_message(
         const remote_protocol::Message &message)
     {
         if (!g_initialized)
         {
-            return ESP_ERR_INVALID_STATE;
+            return ProcessResult::CanTransmitFailed;
         }
 
         if (!remote_protocol::
@@ -349,7 +377,15 @@ namespace esp_now_can_gateway
                 remote_protocol::
                     MAX_PAYLOAD_SIZE)
         {
-            return ESP_ERR_INVALID_ARG;
+            return ProcessResult::InvalidMessage;
+        }
+
+        if (message.type !=
+                remote_protocol::MessageType::Command &&
+            message.type !=
+                remote_protocol::MessageType::Configuration)
+        {
+            return ProcessResult::UnsupportedMessage;
         }
 
         if (message.payload_length <=
@@ -361,6 +397,27 @@ namespace esp_now_can_gateway
 
         return sendFragmentedMessage(
             message);
+    }
+
+    const char *to_string(ProcessResult result)
+    {
+        switch (result)
+        {
+        case ProcessResult::Ok:
+            return "Ok";
+        case ProcessResult::InvalidMessage:
+            return "InvalidMessage";
+        case ProcessResult::UnsupportedMessage:
+            return "UnsupportedMessage";
+        case ProcessResult::CanBusy:
+            return "CanBusy";
+        case ProcessResult::CanTransmitFailed:
+            return "CanTransmitFailed";
+        case ProcessResult::CanTimeout:
+            return "CanTimeout";
+        default:
+            return "Unknown";
+        }
     }
 
     Statistics get_statistics()

@@ -212,7 +212,8 @@ class MCP2515
             ERROR_ALLTXBUSY = 2,
             ERROR_FAILINIT  = 3,
             ERROR_FAILTX    = 4,
-            ERROR_NOMSG     = 5
+            ERROR_NOMSG     = 5,
+            ERROR_TXTIMEOUT = 6
         };
 
         enum MASK {
@@ -469,8 +470,13 @@ class MCP2515
         ERROR setBitrate(const CAN_SPEED canSpeed, const CAN_CLOCK canClock);
         ERROR setFilterMask(const MASK num, const bool ext, const uint32_t ulData);
         ERROR setFilter(const RXF num, const bool ext, const uint32_t ulData);
-        ERROR sendMessage(const TXBn txbn, const struct can_frame *frame);
-        ERROR sendMessage(const struct can_frame *frame);
+        ERROR sendMessage(
+            const TXBn txbn,
+            const struct can_frame *frame,
+            uint32_t timeout_ms = 50);
+        ERROR sendMessage(
+            const struct can_frame *frame,
+            uint32_t timeout_ms = 50);
         ERROR readMessage(const RXBn rxbn, struct can_frame *frame);
         ERROR readMessage(struct can_frame *frame);
         bool checkReceive(void);

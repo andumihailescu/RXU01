@@ -35,12 +35,30 @@ namespace esp_now_can_gateway
         uint8_t data[CLASSIC_CAN_MAX_DATA_LENGTH]{};
     };
 
+    enum class TransmitResult
+    {
+        Ok,
+        Busy,
+        Failed,
+        Timeout
+    };
+
+    enum class ProcessResult
+    {
+        Ok,
+        InvalidMessage,
+        UnsupportedMessage,
+        CanBusy,
+        CanTransmitFailed,
+        CanTimeout
+    };
+
     /**
      * Main-ul va adapta acest callback la
      * metoda reala din driverul MCP2515.
      */
     using TransmitCallback =
-        esp_err_t (*)(
+        TransmitResult (*)(
             const CanFrame &frame,
             void *context);
 
@@ -87,8 +105,10 @@ namespace esp_now_can_gateway
 
     bool is_initialized();
 
-    esp_err_t process_message(
+    ProcessResult process_message(
         const remote_protocol::Message &message);
+
+    const char *to_string(ProcessResult result);
 
     Statistics get_statistics();
 

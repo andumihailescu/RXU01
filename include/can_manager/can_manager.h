@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
 #include "esp_err.h"
@@ -8,6 +10,16 @@
 class CanManager
 {
 public:
+    enum class TransmitResult
+    {
+        Ok,
+        NotInitialized,
+        InvalidFrame,
+        Busy,
+        Failed,
+        Timeout
+    };
+
     struct Config
     {
         gpio_num_t miso = GPIO_NUM_5;
@@ -18,13 +30,14 @@ public:
         int clock_hz = 1000000;
         CAN_SPEED bitrate = CAN_1000KBPS;
         CAN_CLOCK oscillator = MCP_8MHZ;
+        uint32_t transmit_timeout_ms = 50;
     };
 
     CanManager();
     explicit CanManager(const Config &config);
 
     esp_err_t begin();
-    MCP2515::ERROR send(const can_frame &frame);
+    TransmitResult send(const can_frame &frame);
 
 private:
     Config config_;

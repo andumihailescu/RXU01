@@ -2,6 +2,7 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_timer.h"
 
 #include "mcp2515/mcp2515.h"
 
@@ -713,7 +714,10 @@ MCP2515::ERROR MCP2515::setFilter(const RXF num, const bool ext, const uint32_t 
     return ERROR_OK;
 }
 
-MCP2515::ERROR MCP2515::sendMessage(const TXBn txbn, const struct can_frame *frame)
+MCP2515::ERROR MCP2515::sendMessage(
+    const TXBn txbn,
+    const struct can_frame *frame,
+    uint32_t timeout_ms)
 {
     if (frame->can_dlc > CAN_MAX_DLEN)
     {
@@ -736,17 +740,47 @@ MCP2515::ERROR MCP2515::sendMessage(const TXBn txbn, const struct can_frame *fra
 
     setRegisters(txbuf->SIDH, data, 5 + frame->can_dlc);
 
+    // Curata rezultatul transmisiei anterioare din buffer.
+    modifyRegister(
+        txbuf->CTRL,
+        TXB_ABTF | TXB_MLOA | TXB_TXERR,
+        0);
+
     modifyRegister(txbuf->CTRL, TXB_TXREQ, TXB_TXREQ);
 
-    uint8_t ctrl = readRegister(txbuf->CTRL);
-    if ((ctrl & (TXB_ABTF | TXB_MLOA | TXB_TXERR)) != 0)
+    const int64_t deadline =
+        esp_timer_get_time() +
+        static_cast<int64_t>(timeout_ms) * 1000;
+
+    while (true)
     {
-        return ERROR_FAILTX;
+        const uint8_t ctrl = readRegister(txbuf->CTRL);
+
+        if ((ctrl & TXB_TXREQ) == 0)
+        {
+            if ((ctrl & (TXB_ABTF | TXB_TXERR)) != 0)
+            {
+                return ERROR_FAILTX;
+            }
+
+            return ERROR_OK;
+        }
+
+        if (esp_timer_get_time() >= deadline)
+        {
+            // Anuleaza cererea ramasa activa, pentru a evita o
+            // transmisie intarziata dupa raportarea timeout-ului.
+            modifyRegister(txbuf->CTRL, TXB_TXREQ, 0);
+            return ERROR_TXTIMEOUT;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(1));
     }
-    return ERROR_OK;
 }
 
-MCP2515::ERROR MCP2515::sendMessage(const struct can_frame *frame)
+MCP2515::ERROR MCP2515::sendMessage(
+    const struct can_frame *frame,
+    uint32_t timeout_ms)
 {
     if (frame->can_dlc > CAN_MAX_DLEN)
     {
@@ -761,7 +795,10 @@ MCP2515::ERROR MCP2515::sendMessage(const struct can_frame *frame)
         uint8_t ctrlval = readRegister(txbuf->CTRL);
         if ((ctrlval & TXB_TXREQ) == 0)
         {
-            return sendMessage(txBuffers[i], frame);
+            return sendMessage(
+                txBuffers[i],
+                frame,
+                timeout_ms);
         }
     }
 
