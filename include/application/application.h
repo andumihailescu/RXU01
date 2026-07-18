@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "vehicle_can_protocol/vehicle_can_protocol.h"
+
 namespace application
 {
     struct Config
@@ -17,10 +19,8 @@ namespace application
         uint8_t txu01_mac[6] = {
             0x02, 0x52, 0x58, 0x55, 0x00, 0x02};
 
-        uint32_t transport_start_identifier = 0x6E0;
-        uint32_t transport_data_identifier = 0x6E1;
-        bool transport_identifiers_are_extended = false;
-        bool direct_identifiers_are_extended = false;
+        can_command_router::Config command_router =
+            vehicle_can_protocol::make_command_router_config();
     };
 
     /**

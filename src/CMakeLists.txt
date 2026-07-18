@@ -5,6 +5,8 @@ idf_component_register(
         "wifi_manager/wifi_manager.cpp"
         "esp_now_driver/esp_now_driver.cpp"
         "remote_protocol/remote_protocol.cpp"
+        "can_command_router/can_command_router.cpp"
+        "vehicle_can_protocol/vehicle_can_protocol.cpp"
         "esp_now_can_gateway/esp_now_can_gateway.cpp"
         "mcp2515/mcp2515.cpp"
         "can_manager/can_manager.cpp"

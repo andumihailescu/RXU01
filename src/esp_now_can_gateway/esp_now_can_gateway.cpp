@@ -1,74 +1,41 @@
 #include "esp_now_can_gateway/esp_now_can_gateway.h"
 
-#include <algorithm>
-#include <cstring>
-
 namespace
 {
-    constexpr uint8_t TRANSPORT_START_MARKER =
-        0x10;
-
-    constexpr uint8_t TRANSPORT_DATA_MARKER =
-        0x20;
-
-    constexpr uint8_t
-        TRANSPORT_FRAGMENT_INDEX_MASK =
-            0x0F;
-
-    esp_now_can_gateway::Config
-        g_config{};
-
-    esp_now_can_gateway::Statistics
-        g_statistics{};
-
+    esp_now_can_gateway::Config g_config{};
+    esp_now_can_gateway::Statistics g_statistics{};
     bool g_initialized = false;
 
-    uint8_t g_next_transfer_id = 1;
-
-    bool isValidCanIdentifier(
-        uint32_t identifier,
-        bool extended)
+    esp_now_can_gateway::ProcessResult map_route_result(
+        can_command_router::RouteResult result)
     {
-        return extended
-                   ? identifier <= 0x1FFFFFFFU
-                   : identifier <= 0x7FFU;
-    }
+        using RouteResult = can_command_router::RouteResult;
+        using ProcessResult = esp_now_can_gateway::ProcessResult;
 
-    uint8_t getNextTransferId()
-    {
-        const uint8_t current =
-            g_next_transfer_id;
-
-        ++g_next_transfer_id;
-
-        if (g_next_transfer_id == 0)
+        switch (result)
         {
-            g_next_transfer_id = 1;
+        case RouteResult::Ok:
+            return ProcessResult::Ok;
+        case RouteResult::InvalidConfiguration:
+            return ProcessResult::CanTransmitFailed;
+        case RouteResult::InvalidMessageType:
+            return ProcessResult::UnsupportedMessage;
+        case RouteResult::UnknownCommand:
+            return ProcessResult::UnknownCommand;
+        case RouteResult::InvalidPayloadLength:
+            return ProcessResult::InvalidPayloadLength;
+        case RouteResult::InvalidPayloadValue:
+            return ProcessResult::InvalidPayloadValue;
+        default:
+            return ProcessResult::InvalidMessage;
         }
-
-        return current;
     }
 
-    void writeUint16LittleEndian(
-        uint8_t *destination,
-        uint16_t value)
-    {
-        destination[0] =
-            static_cast<uint8_t>(
-                value & 0xFFU);
-
-        destination[1] =
-            static_cast<uint8_t>(
-                (value >> 8U) & 0xFFU);
-    }
-
-    esp_now_can_gateway::ProcessResult mapTransmitResult(
+    esp_now_can_gateway::ProcessResult map_transmit_result(
         esp_now_can_gateway::TransmitResult result)
     {
-        using TransmitResult =
-            esp_now_can_gateway::TransmitResult;
-        using ProcessResult =
-            esp_now_can_gateway::ProcessResult;
+        using TransmitResult = esp_now_can_gateway::TransmitResult;
+        using ProcessResult = esp_now_can_gateway::ProcessResult;
 
         switch (result)
         {
@@ -83,221 +50,6 @@ namespace
             return ProcessResult::CanTransmitFailed;
         }
     }
-
-    esp_now_can_gateway::ProcessResult transmitFrame(
-        const esp_now_can_gateway::CanFrame &frame)
-    {
-        const esp_now_can_gateway::TransmitResult result =
-            g_config.transmit(
-                frame,
-                g_config.transmit_context);
-
-        if (result ==
-            esp_now_can_gateway::TransmitResult::Ok)
-        {
-            ++g_statistics.frames_sent;
-        }
-        else
-        {
-            ++g_statistics.transmit_errors;
-        }
-
-        return mapTransmitResult(result);
-    }
-
-    esp_now_can_gateway::ProcessResult sendDirectMessage(
-        const remote_protocol::Message &message)
-    {
-        const uint32_t identifier =
-            static_cast<uint32_t>(
-                message.message_id);
-
-        if (!isValidCanIdentifier(
-                identifier,
-                g_config
-                    .direct_identifiers_are_extended))
-        {
-            return esp_now_can_gateway::
-                ProcessResult::InvalidMessage;
-        }
-
-        esp_now_can_gateway::CanFrame frame{};
-
-        frame.identifier = identifier;
-
-        frame.extended_identifier =
-            g_config
-                .direct_identifiers_are_extended;
-
-        frame.data_length =
-            message.payload_length;
-
-        if (message.payload_length > 0)
-        {
-            std::memcpy(
-                frame.data,
-                message.payload,
-                message.payload_length);
-        }
-
-        const esp_now_can_gateway::ProcessResult result =
-            transmitFrame(frame);
-
-        if (result ==
-            esp_now_can_gateway::ProcessResult::Ok)
-        {
-            ++g_statistics.direct_messages;
-        }
-
-        return result;
-    }
-
-    esp_now_can_gateway::ProcessResult sendFragmentedMessage(
-        const remote_protocol::Message &message)
-    {
-        const std::size_t fragment_count =
-            (message.payload_length +
-             esp_now_can_gateway::
-                 TRANSPORT_DATA_BYTES_PER_FRAME -
-             1) /
-            esp_now_can_gateway::
-                TRANSPORT_DATA_BYTES_PER_FRAME;
-
-        if (fragment_count == 0 ||
-            fragment_count >
-                (TRANSPORT_FRAGMENT_INDEX_MASK +
-                 1U))
-        {
-            return esp_now_can_gateway::
-                ProcessResult::InvalidMessage;
-        }
-
-        const uint8_t transfer_id =
-            getNextTransferId();
-
-        const uint16_t payload_crc =
-            remote_protocol::calculate_crc16(
-                message.payload,
-                message.payload_length);
-
-        /**
-         * Start frame:
-         *
-         * byte 0   = 0x10
-         * byte 1   = transfer ID
-         * byte 2   = tipul mesajului
-         * byte 3-4 = message ID
-         * byte 5   = lungime totala
-         * byte 6-7 = CRC16 al payloadului
-         */
-        esp_now_can_gateway::CanFrame
-            start_frame{};
-
-        start_frame.identifier =
-            g_config
-                .transport_start_identifier;
-
-        start_frame.extended_identifier =
-            g_config
-                .transport_identifiers_are_extended;
-
-        start_frame.data_length =
-            esp_now_can_gateway::
-                CLASSIC_CAN_MAX_DATA_LENGTH;
-
-        start_frame.data[0] =
-            TRANSPORT_START_MARKER;
-
-        start_frame.data[1] =
-            transfer_id;
-
-        start_frame.data[2] =
-            static_cast<uint8_t>(
-                message.type);
-
-        writeUint16LittleEndian(
-            &start_frame.data[3],
-            message.message_id);
-
-        start_frame.data[5] =
-            message.payload_length;
-
-        writeUint16LittleEndian(
-            &start_frame.data[6],
-            payload_crc);
-
-        esp_now_can_gateway::ProcessResult result =
-            transmitFrame(start_frame);
-
-        if (result !=
-            esp_now_can_gateway::ProcessResult::Ok)
-        {
-            return result;
-        }
-
-        std::size_t payload_offset = 0;
-
-        for (std::size_t fragment_index = 0;
-             fragment_index < fragment_count;
-             ++fragment_index)
-        {
-            esp_now_can_gateway::CanFrame
-                data_frame{};
-
-            data_frame.identifier =
-                g_config
-                    .transport_data_identifier;
-
-            data_frame.extended_identifier =
-                g_config
-                    .transport_identifiers_are_extended;
-
-            data_frame.data_length =
-                esp_now_can_gateway::
-                    CLASSIC_CAN_MAX_DATA_LENGTH;
-
-            data_frame.data[0] =
-                static_cast<uint8_t>(
-                    TRANSPORT_DATA_MARKER |
-                    static_cast<uint8_t>(
-                        fragment_index));
-
-            data_frame.data[1] =
-                transfer_id;
-
-            const std::size_t remaining =
-                message.payload_length -
-                payload_offset;
-
-            const std::size_t
-                bytes_in_fragment =
-                    std::min(
-                        remaining,
-                        esp_now_can_gateway::
-                            TRANSPORT_DATA_BYTES_PER_FRAME);
-
-            std::memcpy(
-                &data_frame.data[2],
-                &message.payload[payload_offset],
-                bytes_in_fragment);
-
-            result =
-                transmitFrame(data_frame);
-
-            if (result !=
-                esp_now_can_gateway::ProcessResult::Ok)
-            {
-                return result;
-            }
-
-            payload_offset +=
-                bytes_in_fragment;
-        }
-
-        ++g_statistics.fragmented_messages;
-
-        return esp_now_can_gateway::ProcessResult::Ok;
-    }
 }
 
 namespace esp_now_can_gateway
@@ -309,36 +61,15 @@ namespace esp_now_can_gateway
             return ESP_OK;
         }
 
-        if (config.transmit == nullptr)
-        {
-            return ESP_ERR_INVALID_ARG;
-        }
-
-        if (!isValidCanIdentifier(
-                config
-                    .transport_start_identifier,
-                config
-                    .transport_identifiers_are_extended) ||
-            !isValidCanIdentifier(
-                config
-                    .transport_data_identifier,
-                config
-                    .transport_identifiers_are_extended))
-        {
-            return ESP_ERR_INVALID_ARG;
-        }
-
-        if (config.transport_start_identifier ==
-            config.transport_data_identifier)
+        if (config.transmit == nullptr ||
+            !can_command_router::is_valid_config(
+                config.command_router))
         {
             return ESP_ERR_INVALID_ARG;
         }
 
         g_config = config;
-        g_next_transfer_id = 1;
-
         reset_statistics();
-
         g_initialized = true;
 
         return ESP_OK;
@@ -348,8 +79,6 @@ namespace esp_now_can_gateway
     {
         g_initialized = false;
         g_config = {};
-        g_next_transfer_id = 1;
-
         reset_statistics();
 
         return ESP_OK;
@@ -368,35 +97,47 @@ namespace esp_now_can_gateway
             return ProcessResult::CanTransmitFailed;
         }
 
-        if (!remote_protocol::
-                is_valid_message_type(
-                    message.type) ||
-            !remote_protocol::are_valid_flags(
-                message.flags) ||
+        if (!remote_protocol::is_valid_message_type(message.type) ||
+            !remote_protocol::are_valid_flags(message.flags) ||
+            (message.flags &
+             remote_protocol::FlagIsResponse) != 0 ||
             message.payload_length >
-                remote_protocol::
-                    MAX_PAYLOAD_SIZE)
+                remote_protocol::MAX_PAYLOAD_SIZE)
         {
+            ++g_statistics.validation_errors;
             return ProcessResult::InvalidMessage;
         }
 
-        if (message.type !=
-                remote_protocol::MessageType::Command &&
-            message.type !=
-                remote_protocol::MessageType::Configuration)
+        CanFrame frame{};
+        const can_command_router::RouteResult route_result =
+            can_command_router::build_frame(
+                message,
+                g_config.command_router,
+                frame);
+
+        if (route_result != can_command_router::RouteResult::Ok)
         {
-            return ProcessResult::UnsupportedMessage;
+            ++g_statistics.validation_errors;
+            return map_route_result(route_result);
         }
 
-        if (message.payload_length <=
-            CLASSIC_CAN_MAX_DATA_LENGTH)
+        ++g_statistics.commands_routed;
+
+        const TransmitResult transmit_result =
+            g_config.transmit(
+                frame,
+                g_config.transmit_context);
+
+        if (transmit_result == TransmitResult::Ok)
         {
-            return sendDirectMessage(
-                message);
+            ++g_statistics.frames_sent;
+        }
+        else
+        {
+            ++g_statistics.transmit_errors;
         }
 
-        return sendFragmentedMessage(
-            message);
+        return map_transmit_result(transmit_result);
     }
 
     const char *to_string(ProcessResult result)
@@ -409,6 +150,12 @@ namespace esp_now_can_gateway
             return "InvalidMessage";
         case ProcessResult::UnsupportedMessage:
             return "UnsupportedMessage";
+        case ProcessResult::UnknownCommand:
+            return "UnknownCommand";
+        case ProcessResult::InvalidPayloadLength:
+            return "InvalidPayloadLength";
+        case ProcessResult::InvalidPayloadValue:
+            return "InvalidPayloadValue";
         case ProcessResult::CanBusy:
             return "CanBusy";
         case ProcessResult::CanTransmitFailed:

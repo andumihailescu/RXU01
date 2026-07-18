@@ -62,7 +62,10 @@ namespace remote_protocol
         UnsupportedMessage = 2,
         CanBusy = 3,
         CanTransmitFailed = 4,
-        CanTimeout = 5
+        CanTimeout = 5,
+        UnknownCommand = 6,
+        InvalidPayloadLength = 7,
+        InvalidPayloadValue = 8
     };
 
     struct Message

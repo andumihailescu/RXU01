@@ -18,7 +18,6 @@
 namespace
 {
     constexpr char TAG[] = "RXU01";
-    constexpr uint16_t TEST_MESSAGE_ID = 0x0100;
     constexpr std::size_t REQUEST_CACHE_SIZE = 16;
     constexpr int64_t REQUEST_CACHE_LIFETIME_US =
         5 * 1000 * 1000;
@@ -67,21 +66,13 @@ namespace
             config.receive_queue_depth == 0 ||
             config.send_result_queue_depth == 0 ||
             !is_valid_unicast_mac(config.txu01_mac) ||
-            config.transport_start_identifier ==
-                config.transport_data_identifier)
+            !can_command_router::is_valid_config(
+                config.command_router))
         {
             return ESP_ERR_INVALID_ARG;
         }
 
         return ESP_OK;
-    }
-
-    uint32_t read_uint32_little_endian(const uint8_t *data)
-    {
-        return static_cast<uint32_t>(data[0]) |
-               (static_cast<uint32_t>(data[1]) << 8U) |
-               (static_cast<uint32_t>(data[2]) << 16U) |
-               (static_cast<uint32_t>(data[3]) << 24U);
     }
 
     esp_now_can_gateway::TransmitResult transmit_can_frame(
@@ -154,14 +145,7 @@ namespace
         esp_now_can_gateway::Config config{};
         config.transmit = transmit_can_frame;
         config.transmit_context = &g_can_manager;
-        config.transport_start_identifier =
-            app_config.transport_start_identifier;
-        config.transport_data_identifier =
-            app_config.transport_data_identifier;
-        config.transport_identifiers_are_extended =
-            app_config.transport_identifiers_are_extended;
-        config.direct_identifiers_are_extended =
-            app_config.direct_identifiers_are_extended;
+        config.command_router = app_config.command_router;
 
         return esp_now_can_gateway::init(config);
     }
@@ -234,6 +218,12 @@ namespace
             return AckStatus::InvalidMessage;
         case ProcessResult::UnsupportedMessage:
             return AckStatus::UnsupportedMessage;
+        case ProcessResult::UnknownCommand:
+            return AckStatus::UnknownCommand;
+        case ProcessResult::InvalidPayloadLength:
+            return AckStatus::InvalidPayloadLength;
+        case ProcessResult::InvalidPayloadValue:
+            return AckStatus::InvalidPayloadValue;
         case ProcessResult::CanBusy:
             return AckStatus::CanBusy;
         case ProcessResult::CanTimeout:
@@ -406,16 +396,6 @@ namespace
             static_cast<unsigned>(message.message_id),
             static_cast<unsigned>(message.payload_length));
 
-        if (message.message_id == TEST_MESSAGE_ID &&
-            message.payload_length == 8)
-        {
-            ESP_LOGI(
-                TAG,
-                "Counter=%lu",
-                static_cast<unsigned long>(
-                    read_uint32_little_endian(message.payload)));
-        }
-
         const bool acknowledgement_requested =
             (message.flags &
              remote_protocol::FlagAckRequested) != 0 &&
@@ -461,7 +441,7 @@ namespace
         {
             ESP_LOGE(
                 TAG,
-                "Mesajul nu a putut fi trimis pe CAN: %s",
+                "Comanda nu a putut fi rutata pe CAN: %s",
                 esp_now_can_gateway::to_string(result));
         }
 
