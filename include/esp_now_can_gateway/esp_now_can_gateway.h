@@ -5,35 +5,12 @@
 
 #include "esp_err.h"
 
+#include "can_command_router/can_command_router.h"
 #include "remote_protocol/remote_protocol.h"
 
 namespace esp_now_can_gateway
 {
-    constexpr std::size_t
-        CLASSIC_CAN_MAX_DATA_LENGTH = 8;
-
-    /**
-     * Fiecare cadru de fragment transporta
-     * 6 bytes utili:
-     *
-     * byte 0 = marker | fragment index
-     * byte 1 = transfer ID
-     * byte 2..7 = date
-     */
-    constexpr std::size_t
-        TRANSPORT_DATA_BYTES_PER_FRAME = 6;
-
-    struct CanFrame
-    {
-        uint32_t identifier = 0;
-
-        bool extended_identifier =
-            false;
-
-        uint8_t data_length = 0;
-
-        uint8_t data[CLASSIC_CAN_MAX_DATA_LENGTH]{};
-    };
+    using CanFrame = can_command_router::CanFrame;
 
     enum class TransmitResult
     {
@@ -48,6 +25,9 @@ namespace esp_now_can_gateway
         Ok,
         InvalidMessage,
         UnsupportedMessage,
+        UnknownCommand,
+        InvalidPayloadLength,
+        InvalidPayloadValue,
         CanBusy,
         CanTransmitFailed,
         CanTimeout
@@ -70,28 +50,14 @@ namespace esp_now_can_gateway
         void *transmit_context =
             nullptr;
 
-        uint32_t transport_start_identifier =
-            0x6E0;
-
-        uint32_t transport_data_identifier =
-            0x6E1;
-
-        bool transport_identifiers_are_extended =
-            false;
-
-        /**
-         * Pentru mesajele de maximum 8 bytes,
-         * message_id devine direct CAN ID.
-         */
-        bool direct_identifiers_are_extended =
-            false;
+        can_command_router::Config command_router{};
     };
 
     struct Statistics
     {
-        uint32_t direct_messages = 0;
-        uint32_t fragmented_messages = 0;
+        uint32_t commands_routed = 0;
         uint32_t frames_sent = 0;
+        uint32_t validation_errors = 0;
         uint32_t transmit_errors = 0;
     };
 
