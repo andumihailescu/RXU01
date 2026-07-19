@@ -33,10 +33,14 @@ namespace vehicle_can_protocol
     {
         LightingGetSoftwareVersion =
             make_remote_message_id(EcuRole::Lighting, 0x01),
-        LightingSetTaillightsBrightness =
-            make_remote_message_id(EcuRole::Lighting, 0x02),
         LightingSetIndicatorState =
-            make_remote_message_id(EcuRole::Lighting, 0x03)
+            make_remote_message_id(EcuRole::Lighting, 0x03),
+        LightingSetExteriorLightsState =
+            make_remote_message_id(EcuRole::Lighting, 0x04),
+        LightingSetBrakeState =
+            make_remote_message_id(EcuRole::Lighting, 0x05),
+        LightingSetReverseLightState =
+            make_remote_message_id(EcuRole::Lighting, 0x06)
     };
 
     /**
@@ -49,8 +53,11 @@ namespace vehicle_can_protocol
     enum class Lmcu100CommandId : uint8_t
     {
         GetSoftwareVersion = 0x01,
-        SetTaillightsBrightness = 0x02,
-        SetIndicatorState = 0x03
+        Reserved = 0x02,
+        SetIndicatorState = 0x03,
+        SetExteriorLightsState = 0x04,
+        SetBrakeState = 0x05,
+        SetReverseLightState = 0x06
     };
 
     enum class IndicatorStateField : uint8_t
@@ -68,9 +75,38 @@ namespace vehicle_can_protocol
 
     constexpr uint8_t INDICATOR_STATE_PAYLOAD_LENGTH = 3;
 
+    enum class ExteriorLightMode : uint8_t
+    {
+        Off = 0,
+        Drl = 1,
+        Positions = 2,
+        LowBeam = 3
+    };
+
+    enum class ExteriorLightStateField : uint8_t
+    {
+        Mode = 0,
+        FrontProjectors = 1,
+        FogLights = 2,
+        HighBeam = 3
+    };
+
+    constexpr uint8_t EXTERIOR_LIGHT_STATE_PAYLOAD_LENGTH = 4;
+    constexpr uint8_t BRAKE_STATE_PAYLOAD_LENGTH = 1;
+    constexpr uint8_t REVERSE_LIGHT_STATE_PAYLOAD_LENGTH = 1;
+
     static_assert(
         static_cast<uint16_t>(
             RemoteCommandId::LightingSetIndicatorState) == 0x0103);
+    static_assert(
+        static_cast<uint16_t>(
+            RemoteCommandId::LightingSetExteriorLightsState) == 0x0104);
+    static_assert(
+        static_cast<uint16_t>(
+            RemoteCommandId::LightingSetBrakeState) == 0x0105);
+    static_assert(
+        static_cast<uint16_t>(
+            RemoteCommandId::LightingSetReverseLightState) == 0x0106);
 
     /**
      * Returneaza registry-ul ECU si tabela de comenzi ale masinii.

@@ -10,6 +10,7 @@
 #include "esp_timer.h"
 
 #include "can_manager/can_manager.h"
+#include "config/software_version.h"
 #include "esp_now_can_gateway/esp_now_can_gateway.h"
 #include "esp_now_driver/esp_now_driver.h"
 #include "remote_protocol/remote_protocol.h"
@@ -344,6 +345,14 @@ namespace
     void log_startup_info(const application::Config &config)
     {
         ESP_LOGI(TAG, "RXU01 pornit");
+        ESP_LOGI(
+            TAG,
+            "Versiune software: %u.%u.%u + CW%02u + CY%02u",
+            static_cast<unsigned>(SoftwareVersionConfig::Major),
+            static_cast<unsigned>(SoftwareVersionConfig::Minor),
+            static_cast<unsigned>(SoftwareVersionConfig::Patch),
+            static_cast<unsigned>(SoftwareVersionConfig::IsoWeek),
+            static_cast<unsigned>(SoftwareVersionConfig::IsoYearShort));
         ESP_LOGI(
             TAG,
             "Canal ESP-NOW: %u",
